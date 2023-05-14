@@ -4,7 +4,7 @@ import numpy as np
 
 def complex_spread(g: nx.Graph,
                    initial_seed: list,
-                   complex_threshold: float = 0.18):
+                   complex_threshold: float = 0.16):
     nx.set_node_attributes(g, False, 'contagion')
 
     for n in initial_seed:
