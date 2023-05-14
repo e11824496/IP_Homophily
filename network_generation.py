@@ -56,8 +56,7 @@ def is_pop_frac_consistent(pop_fracs_lst, comp_pop_frac_tnsr):
     assert np.all(pop_fracs_lst <= 1)
 
     # Check pop_fracs_lst ordered from smaller to larger populations
-    # We assume this for several computations, so it is better to
-    # be sure
+    # We assume this for several computations, so it is better to be sure
     for pop_fracs in pop_fracs_lst:
         assert np.all(np.sort(pop_fracs) == pop_fracs)
 
@@ -126,7 +125,7 @@ def am_v2(
         pop_fracs_lst=None,
         m=3,
         N=1000,
-        v=1):
+        v=0):
 
     # Centola style connections
 

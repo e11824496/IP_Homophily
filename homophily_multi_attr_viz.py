@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
 import numpy as np
 import imp
-homomul = imp.load_source("homomul","homophily_multiple_attributes.py")
+import network_generation as homomul
+#homomul = imp.load_source("homomul","homophily_multiple_attributes.py")
 # fair_simul = imp.load_source("fair_simul","2022_11_02_fairness_simulations.py")
 
 ##############################################################################
