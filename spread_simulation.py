@@ -1,5 +1,8 @@
 import networkx as nx
 import numpy as np
+import network_generation as homomul
+from tqdm.notebook import tqdm
+import homophily_multi_attr_viz as viz
 
 
 def complex_spread(g: nx.Graph,
@@ -47,3 +50,82 @@ def simple_spread(g: nx.Graph, initial_seed: list):
 
 def fraction_infected(g: nx.Graph) -> float:
     return np.average([c for n, c in g.nodes(data='contagion')])
+
+
+def batch_simulate(N: int, m: int, consolidation_param: float,
+                   homophily: float,
+                   marginal_distribution: list = [[0.5, 0.5], [0.5, 0.5]],
+                   complex_threshold: float = 0.16,
+                   initial_seed_filter=lambda x: x.nodes,
+                   n_networks: int = 3,
+                   n_initial_seeds: int = 10) -> list[float]:
+
+    comp_pop_frac_tnsr = homomul.consol_comp_pop_frac_tnsr(
+        marginal_distribution,
+        consolidation_param)
+
+    h1 = np.array([[homophily, 1-homophily], [1-homophily, homophily]])
+    h2 = h1.copy()
+    h_mtrx_lst = np.array([h1, h2])
+
+    results = []
+
+    for _ in range(n_networks):
+        g = homomul.am_v2(
+                    h_mtrx_lst,
+                    comp_pop_frac_tnsr,
+                    homophily_kind='all',
+                    directed=False,
+                    pop_fracs_lst=marginal_distribution,
+                    N=N,
+                    m=m
+                    )
+
+        filterd_nodes = initial_seed_filter(g)
+        n = min(n_initial_seeds, len(filterd_nodes))
+        initial_seeds = np.random.choice(filterd_nodes, n, replace=False)
+
+        for initial in initial_seeds:
+            initial = [initial] + [x for x in g.neighbors(initial)]
+            g = complex_spread(g, initial, complex_threshold)
+            results.append(fraction_infected(g))
+
+    return np.average(results), np.average([x > 0.9 for x in results])
+
+
+def setting_simulate(v1_key, v1_settings, v2_key, v2_settings,
+                     default_model_setting: dict, experiment_settings: dict,
+                     visualize_results: bool = True):
+
+    results_average = np.zeros((v1_settings.size, v2_settings.size))
+    results_global_spread = results_average.copy()
+
+    progress_bar = tqdm(total=v1_settings.size * v2_settings.size)
+
+    for i, v1 in enumerate(v1_settings):
+        for j, v2 in enumerate(v2_settings):
+
+            default_model_setting[v1_key] = v1
+            default_model_setting[v2_key] = v2
+
+            r_average, r_global_spread = batch_simulate(
+                **default_model_setting,
+                **experiment_settings)
+            tqdm.write(f'{v1_key}: {v1:.2f} / {v2_key}: {v2:0.2f} ' +
+                       f'=> avg = {r_average:.2f}; ' +
+                       f'global = {r_global_spread:0.2f}')
+
+            results_average[i, j] = r_average
+            results_global_spread[i, j] = r_global_spread
+
+            progress_bar.update()
+
+    progress_bar.close()
+
+    if visualize_results:
+        viz.fig_2attr_heatmap(v1_key, v1_settings, v2_key, v2_settings,
+                              results_average, title='Average Spread')
+        viz.fig_2attr_heatmap(v1_key, v1_settings, v2_key, v2_settings,
+                              results_global_spread, title='Global Spread')
+
+    return results_average, results_global_spread
