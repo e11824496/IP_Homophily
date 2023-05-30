@@ -134,11 +134,12 @@ def fig_2bin_comp_pop_frac(comp_pop_frac_tnsr):
 
 def fig_2attr_heatmap(key1, values1, key2, values2, result, title=None):
     plt.imshow(result, interpolation='nearest')
-    plt.yticks(np.arange(values1.size), [f'{x:0.1f}' for x in values1])
-    plt.xticks(np.arange(values2.size), [f'{x:0.1f}' for x in values2])
+    plt.yticks(np.arange(values1.size), [f'{x:0.2f}' for x in values1])
+    plt.xticks(np.arange(values2.size), [f'{x:0.2f}' for x in values2])
     plt.ylabel(key1)
     plt.xlabel(key2)
     plt.colorbar()
+    plt.clim(0, 1)
     if title:
         plt.title(title)
     plt.show()
