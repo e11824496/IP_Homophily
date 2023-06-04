@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 import networkx as nx
+import math
 
 
 def interaction_all(h_vec: list) -> bool:
@@ -118,16 +119,24 @@ def build_social_structure(N, comp_pop_frac_tnsr, directed=None):
 
 
 def am_v2(
-        h_mtrx_lst,
-        comp_pop_frac_tnsr,
-        homophily_kind,
+        homophily,
+        consolidation_param,
         directed=False,
-        pop_fracs_lst=None,
+        marginal_distribution=None,
         m=3,
         N=1000,
-        v=0):
+        v=0,
+        **kwargs):
 
     # Centola style connections
+
+    comp_pop_frac_tnsr = consol_comp_pop_frac_tnsr(
+        marginal_distribution,
+        consolidation_param)
+
+    h1 = np.array([[homophily, 1-homophily], [1-homophily, homophily]])
+    h2 = h1.copy()
+    h_mtrx_lst = np.array([h1, h2])
 
     h_mtrx_lst = np.array(h_mtrx_lst)
 
@@ -135,7 +144,7 @@ def am_v2(
     am_preliminary_checks(
         h_mtrx_lst,
         comp_pop_frac_tnsr,
-        pop_fracs_lst=pop_fracs_lst)
+        pop_fracs_lst=marginal_distribution)
 
     # Compute number of dimensions
     D = len(h_mtrx_lst)
@@ -167,15 +176,12 @@ def am_v2(
         orig_idx = G.nodes[n]["attr"]
         target_idx = G.nodes[target]["attr"]
 
-        if homophily_kind == "hierarchy":
-            h_vec = h_mtrx_lst
-        else:
-            for d in range(D):
-                h_vec[d] = h_mtrx_lst[
-                        d,
-                        orig_idx[d],
-                        target_idx[d]
-                        ]
+        for d in range(D):
+            h_vec[d] = h_mtrx_lst[
+                    d,
+                    orig_idx[d],
+                    target_idx[d]
+                    ]
 
         # Check if the tie is made
         successful_tie = interaction(h_vec)
@@ -186,6 +192,93 @@ def am_v2(
             n_lnks += 1
 
     return G
+
+
+def social_origins_network(
+        N=3200,
+        m=5,
+        alpha=1.0,
+        beta=1.0,
+        H=32,
+        D=10,
+        **kwargs):
+
+    G = nx.Graph()
+
+    max_dist = math.ceil(np.log2(H)) + 1
+    beta_vec = np.array([np.exp(-beta * x) for x in range(1, max_dist + 1)])
+    beta_vec = beta_vec / np.sum(beta_vec)
+
+    alpha_vec = np.array([np.exp(-alpha * x) for x in range(1, max_dist + 1)])
+    alpha_vec = alpha_vec / np.sum(alpha_vec)
+
+    def attributes_dist(a1, a2):
+        for i in range(max_dist - 1, -1, -1):
+            if a1//(2**i) != a2//(2**i):
+                return i + 2
+        return 1
+
+    attribute_dist_matrix = np.zeros((H, H), dtype=np.int16)
+    for i in range(H):
+        for j in range(H):
+            attribute_dist_matrix[i, j] = attributes_dist(i, j)
+
+    # CREATE NODES
+    for i in range(N):
+        attributes = []
+        d1 = np.random.randint(H)
+        attributes.append(d1)
+
+        dist = np.random.choice(range(1, max_dist + 1), D - 1,
+                                p=beta_vec, replace=True)
+
+        for j in range(0, D - 1):
+            possible_attributes = [x for x in range(H)
+                                   if attribute_dist_matrix[x, d1] == dist[j]]
+
+            attributes.append(np.random.choice(possible_attributes))
+
+        G.add_node(i, attr=tuple(attributes))
+
+    # CREATE NODES DISTANCE MATRIX
+    node_dist_matrix = np.zeros((N, N), dtype=np.int16)
+    for i in range(N):
+        for j in range(N):
+            attr_i = G.nodes[i]["attr"]
+            attr_j = G.nodes[j]["attr"]
+            distances = [attribute_dist_matrix[attr_i[k], attr_j[k]]
+                         for k in range(D)]
+            node_dist_matrix[i, j] = min(distances)
+
+    # CREATE LINKS
+    n_links = 0
+    while n_links < N * m:
+        i = np.random.randint(N)
+        dist = np.random.choice(range(1, max_dist + 1), p=alpha_vec)
+
+        candidate_nodes = np.where(node_dist_matrix[i, :] == dist)[0]
+
+        if len(candidate_nodes) == 0:
+            continue
+
+        selected_node = np.random.choice(candidate_nodes)
+        if not G.has_edge(i, selected_node):
+            G.add_edge(i, selected_node)
+            n_links += 1
+
+    return G
+
+
+generator_name_mapping = {
+    "am_v2": am_v2,
+    "social_origins_network": social_origins_network,
+}
+
+
+def get_network_generator(name):
+    if name is None:
+        return am_v2
+    return generator_name_mapping[name]
 
 
 def G_attr_to_str(G: nx.Graph, attr):

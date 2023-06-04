@@ -52,34 +52,24 @@ def fraction_infected(g: nx.Graph) -> float:
     return np.average([c for n, c in g.nodes(data='contagion')])
 
 
-def batch_simulate(N: int, m: int, consolidation_param: float,
-                   homophily: float,
-                   marginal_distribution: list = [[0.5, 0.5], [0.5, 0.5]],
-                   complex_threshold: float = 0.16,
-                   initial_seed_filter=lambda x: x.nodes,
-                   n_networks: int = 3,
-                   n_initial_seeds: int = 10) -> list[float]:
+def batch_simulate(default_model_setting: dict,
+                   experiment_settings: dict) -> list[float]:
 
-    comp_pop_frac_tnsr = homomul.consol_comp_pop_frac_tnsr(
-        marginal_distribution,
-        consolidation_param)
+    n_networks = experiment_settings['n_networks']
+    n_initial_seeds = experiment_settings['n_initial_seeds']
 
-    h1 = np.array([[homophily, 1-homophily], [1-homophily, homophily]])
-    h2 = h1.copy()
-    h_mtrx_lst = np.array([h1, h2])
+    initial_seed_filter = default_model_setting['initial_seed_filter']
+    complex_threshold = default_model_setting['complex_threshold']
+
+    network_generation = homomul.am_v2
+    if 'model_type' in default_model_setting:
+        m = default_model_setting['model_type']
+        network_generation = homomul.get_network_generator(m)
 
     results = []
 
     for _ in range(n_networks):
-        g = homomul.am_v2(
-                    h_mtrx_lst,
-                    comp_pop_frac_tnsr,
-                    homophily_kind='all',
-                    directed=False,
-                    pop_fracs_lst=marginal_distribution,
-                    N=N,
-                    m=m
-                    )
+        g = network_generation(**default_model_setting)
 
         filterd_nodes = initial_seed_filter(g)
         n = min(n_initial_seeds, len(filterd_nodes))
@@ -109,8 +99,8 @@ def setting_simulate(v1_key, v1_settings, v2_key, v2_settings,
             default_model_setting[v2_key] = v2
 
             r_average, r_global_spread = batch_simulate(
-                **default_model_setting,
-                **experiment_settings)
+                default_model_setting,
+                experiment_settings)
             tqdm.write(f'{v1_key}: {v1:.2f} / {v2_key}: {v2:0.2f} ' +
                        f'=> avg = {r_average:.2f}; ' +
                        f'global = {r_global_spread:0.2f}')
