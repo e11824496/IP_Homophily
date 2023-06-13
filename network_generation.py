@@ -4,8 +4,12 @@ import networkx as nx
 import math
 
 
-def interaction_all(h_vec: list) -> bool:
-    return np.prod(h_vec) >= np.random.random()
+def interaction_all_normalization(h_matrix_lst: np.ndarray) -> float:
+    return 1/np.prod(np.max(h_matrix_lst, axis=(1, 2)))
+
+
+def interaction_all(h_vec: list, normalization: float) -> bool:
+    return normalization * np.prod(h_vec) >= np.random.random()
 
 
 #######################################
@@ -156,6 +160,7 @@ def am_v2(
     # Build interaction function (faster than an if-switch inside
     # the inner for loop)
     interaction = interaction_all
+    normalization = interaction_all_normalization(h_mtrx_lst)
 
     # Iterate
     h_vec = np.zeros(D)
@@ -184,7 +189,7 @@ def am_v2(
                     ]
 
         # Check if the tie is made
-        successful_tie = interaction(h_vec)
+        successful_tie = interaction(h_vec, normalization)
 
         # Create links
         if successful_tie:
@@ -201,6 +206,7 @@ def social_origins_network(
         beta=1.0,
         H=32,
         D=10,
+        dimension_aggrigation=min,
         **kwargs):
 
     G = nx.Graph()
@@ -248,10 +254,11 @@ def social_origins_network(
             attr_j = G.nodes[j]["attr"]
             distances = [attribute_dist_matrix[attr_i[k], attr_j[k]]
                          for k in range(D)]
-            node_dist_matrix[i, j] = min(distances)
+            node_dist_matrix[i, j] = dimension_aggrigation(distances)
 
     # CREATE LINKS
     n_links = 0
+    it_last_update = 0
     while n_links < N * m:
         i = np.random.randint(N)
         dist = np.random.choice(range(1, max_dist + 1), p=alpha_vec)
@@ -265,6 +272,12 @@ def social_origins_network(
         if not G.has_edge(i, selected_node):
             G.add_edge(i, selected_node)
             n_links += 1
+            it_last_update = 0
+        else:
+            it_last_update += 1
+
+            if it_last_update > 100:    # 100 is arbitrary
+                return None
 
     return G
 

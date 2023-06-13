@@ -71,6 +71,9 @@ def batch_simulate(default_model_setting: dict,
     for _ in range(n_networks):
         g = network_generation(**default_model_setting)
 
+        if g is None:
+            return np.NAN, np.NAN
+
         filterd_nodes = initial_seed_filter(g)
         n = min(n_initial_seeds, len(filterd_nodes))
         initial_seeds = np.random.choice(filterd_nodes, n, replace=False)
