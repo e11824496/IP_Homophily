@@ -79,3 +79,29 @@ def homophily_matrix(g: nx.Graph, plot=True) -> np.ndarray:
         plt.show()
 
     return number_of_edges_matrix
+
+
+def homophily_measure(g: nx.Graph) -> float:
+    h_matrix = homophily_matrix(g, plot=False)
+    h_matrix = h_matrix / h_matrix.sum()
+
+    a = np.sum(h_matrix, axis=0)
+    b = np.sum(h_matrix, axis=1)
+
+    r = h_matrix.diagonal().sum() - np.dot(a, b)
+    r = r / (1 - np.dot(a, b))
+
+    return r
+
+
+def consolidation_measure(g: nx.Graph) -> float:
+    m_matrix = marginal_matrix(g, plot=False)
+
+    Pi = np.sum(m_matrix, axis=1)
+    Pj = np.sum(m_matrix, axis=0)
+    MI = 0
+    for i in range(m_matrix.shape[0]):
+        for j in range(m_matrix.shape[1]):
+            if m_matrix[i, j] != 0:
+                MI += m_matrix[i, j]*np.log(m_matrix[i, j]/(Pi[i]*Pj[j]))
+    return MI

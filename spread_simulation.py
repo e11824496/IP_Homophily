@@ -13,9 +13,11 @@ def complex_spread(g: nx.Graph,
     for n in initial_seed:
         g.nodes[n]['contagion'] = True
 
+    iterations = 0
     num_changes = 1
 
     while num_changes > 0:
+        iterations += 1
         num_changes = 0
         for n in g.nodes():
             if g.nodes[n]['contagion']:
@@ -30,7 +32,7 @@ def complex_spread(g: nx.Graph,
                 g.nodes[n]['contagion'] = True
                 num_changes += 1
 
-    return g
+    return g, iterations
 
 
 def simple_spread(g: nx.Graph, initial_seed: list):
@@ -67,6 +69,7 @@ def batch_simulate(default_model_setting: dict,
         network_generation = homomul.get_network_generator(m)
 
     results = []
+    iteration_results = []
 
     for _ in range(n_networks):
         g = network_generation(**default_model_setting)
@@ -80,10 +83,18 @@ def batch_simulate(default_model_setting: dict,
 
         for initial in initial_seeds:
             initial = [initial] + [x for x in g.neighbors(initial)]
-            g = complex_spread(g, initial, complex_threshold)
+            g, iterations = complex_spread(g, initial, complex_threshold)
             results.append(fraction_infected(g))
+            iteration_results.append(iterations)
 
-    return np.average(results), np.average([x > 0.9 for x in results])
+    average_spread = np.average(results)
+    average_global_cascades = np.average([x > 0.9 for x in results])
+    average_iter_global_cascades = np.average(
+        [i for r, i in zip(results, iteration_results) if r > 0.9])
+
+    return (average_spread,
+            average_global_cascades,
+            average_iter_global_cascades)
 
 
 def setting_simulate(v1_key, v1_settings, v2_key, v2_settings,
@@ -92,6 +103,7 @@ def setting_simulate(v1_key, v1_settings, v2_key, v2_settings,
 
     results_average = np.zeros((v1_settings.size, v2_settings.size))
     results_global_spread = results_average.copy()
+    results_iter = results_average.copy()
 
     progress_bar = tqdm(total=v1_settings.size * v2_settings.size)
 
@@ -101,15 +113,17 @@ def setting_simulate(v1_key, v1_settings, v2_key, v2_settings,
             default_model_setting[v1_key] = v1
             default_model_setting[v2_key] = v2
 
-            r_average, r_global_spread = batch_simulate(
+            r_average, r_global_spread, r_iter = batch_simulate(
                 default_model_setting,
                 experiment_settings)
             tqdm.write(f'{v1_key}: {v1:.2f} / {v2_key}: {v2:0.2f} ' +
                        f'=> avg = {r_average:.2f}; ' +
-                       f'global = {r_global_spread:0.2f}')
+                       f'global = {r_global_spread:0.2f}; ' +
+                       f'avg iter = {r_iter:.1f}')
 
             results_average[i, j] = r_average
             results_global_spread[i, j] = r_global_spread
+            results_iter[i, j] = r_iter
 
             progress_bar.update()
 
@@ -120,5 +134,8 @@ def setting_simulate(v1_key, v1_settings, v2_key, v2_settings,
                               results_average, title='Average Spread')
         viz.fig_2attr_heatmap(v1_key, v1_settings, v2_key, v2_settings,
                               results_global_spread, title='Global Spread')
+        viz.fig_2attr_heatmap(v1_key, v1_settings, v2_key, v2_settings,
+                              results_iter, title='Average Iterations',
+                              clim=None)
 
-    return results_average, results_global_spread
+    return results_average, results_global_spread, results_iter
