@@ -4,6 +4,7 @@ import itertools
 import matplotlib.pyplot as plt
 import homophily_multi_attr_viz as homomul_viz
 from collections import defaultdict
+from sklearn import metrics
 
 
 def marginal_matrix(g: nx.Graph, plot=True) -> np.ndarray:
@@ -81,27 +82,49 @@ def homophily_matrix(g: nx.Graph, plot=True) -> np.ndarray:
     return number_of_edges_matrix
 
 
-def homophily_measure(g: nx.Graph) -> float:
-    h_matrix = homophily_matrix(g, plot=False)
-    h_matrix = h_matrix / h_matrix.sum()
+def homophily_measure(g: nx.Graph = None, hm=None) -> float:
+    if hm is None:
+        hm = homophily_matrix(g, plot=False)
+    hm = hm / hm.sum()
 
-    a = np.sum(h_matrix, axis=0)
-    b = np.sum(h_matrix, axis=1)
+    a = np.sum(hm, axis=0)
+    b = np.sum(hm, axis=1)
 
-    r = h_matrix.diagonal().sum() - np.dot(a, b)
+    r = hm.diagonal().sum() - np.dot(a, b)
     r = r / (1 - np.dot(a, b))
 
     return r
 
 
-def consolidation_measure(g: nx.Graph) -> float:
-    m_matrix = marginal_matrix(g, plot=False)
+def consolidation_measure(g: nx.Graph = None, mm=None) -> float:
+    if mm is None:
+        mm = marginal_matrix(g, plot=False)
+    mm = mm / mm.sum()
 
-    Pi = np.sum(m_matrix, axis=1)
-    Pj = np.sum(m_matrix, axis=0)
+    Pi = np.sum(mm, axis=1)
+    Pj = np.sum(mm, axis=0)
     MI = 0
-    for i in range(m_matrix.shape[0]):
-        for j in range(m_matrix.shape[1]):
-            if m_matrix[i, j] != 0:
-                MI += m_matrix[i, j]*np.log(m_matrix[i, j]/(Pi[i]*Pj[j]))
+    for i in range(mm.shape[0]):
+        for j in range(mm.shape[1]):
+            if mm[i, j] != 0:
+                MI += mm[i, j]*np.log(mm[i, j]/(Pi[i]*Pj[j]))
     return MI
+
+
+def adjusted_consolidation_measure(g: nx.Graph = None, mm=None) -> float:
+    def entropy(x):
+        E = 0
+        for i in range(mm.shape[0]):
+            if x[i] != 0:
+                E += x[i]*np.log(x[i])
+        return -E
+
+    if mm is None:
+        mm = marginal_matrix(g, plot=False)
+    mm = mm / mm.sum()
+
+    e1 = entropy(np.sum(mm, axis=1))
+    e2 = entropy(np.sum(mm, axis=0))
+
+    MI = consolidation_measure(mm=mm)
+    return 2*MI/(e1 + e2)

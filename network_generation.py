@@ -12,6 +12,14 @@ def interaction_all(h_vec: list, normalization: float) -> bool:
     return normalization * np.prod(h_vec) >= np.random.random()
 
 
+def interaction_one_normalization(h_matrix_lst: np.ndarray) -> float:
+    return 1/(1 - np.prod(1 - np.max(h_matrix_lst, axis=(1, 2))))
+
+
+def interaction_one(h_vec: list, normalization: float) -> bool:
+    return normalization * (1 - np.prod(1 - h_vec)) >= np.random.random()
+
+
 #######################################
 # Tunable consolidation for two binary populations
 #######################################
@@ -129,6 +137,7 @@ def am_v2(
         marginal_distribution=None,
         m=3,
         N=1000,
+        interaction_kind='all',
         v=0,
         **kwargs):
 
@@ -159,8 +168,16 @@ def am_v2(
 
     # Build interaction function (faster than an if-switch inside
     # the inner for loop)
-    interaction = interaction_all
-    normalization = interaction_all_normalization(h_mtrx_lst)
+    if interaction_kind == 'all':
+        interaction = interaction_all
+        normalization = interaction_all_normalization(h_mtrx_lst)
+
+    elif interaction_kind == 'one':
+        interaction = interaction_one
+        normalization = interaction_one_normalization(h_mtrx_lst)
+
+    else:
+        raise ValueError(f"Unknown interaction kind: {interaction_kind}")
 
     # Iterate
     h_vec = np.zeros(D)
